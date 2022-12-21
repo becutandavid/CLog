@@ -4,13 +4,14 @@ Author      : LogPAI team
 License     : MIT
 """
 
-import re
+import hashlib
 import os
+import re
+from datetime import datetime
+from io import StringIO
+
 import numpy as np
 import pandas as pd
-import hashlib
-from datetime import datetime
-import re
 
 
 class Logcluster:
@@ -216,7 +217,8 @@ class LogParser:
 
         if self.keep_para:
             self.df_log["ParameterList"] = self.df_log.apply(self.get_parameter_list, axis=1) 
-        # a1 = self.df_log.to_csv(os.path.join(self.savePath, self.logName + '_structured.csv'), index=False)
+        a1 = self.df_log.to_csv(os.path.join(self.savePath, self.logName + '_structured.csv'), index=False)
+        self.df_log.to_pickle(os.path.join(self.savePath, self.logName + '_structured.pickle'))
         a1 = self.df_log
 
         occ_dict = dict(self.df_log['EventTemplate'].value_counts())
@@ -224,7 +226,8 @@ class LogParser:
         df_event['EventTemplate'] = self.df_log['EventTemplate'].unique()
         df_event['EventId'] = df_event['EventTemplate'].map(lambda x: hashlib.md5(x.encode('utf-8')).hexdigest()[0:8])
         df_event['Occurrences'] = df_event['EventTemplate'].map(occ_dict)
-        #df_event.to_csv(os.path.join(self.savePath, self.logName + '_templates.csv'), index=False, columns=["EventId", "EventTemplate", "Occurrences"])
+        df_event.to_csv(os.path.join(self.savePath, self.logName + '_templates.csv'), index=False, columns=["EventId", "EventTemplate", "Occurrences"])
+        df_event.to_pickle(os.path.join(self.savePath, self.logName + '_templates.pickle'))
         return a1, df_event
 
     def printTree(self, node, dep):
@@ -327,13 +330,24 @@ class LogParser:
     def load_data(self):
         headers, regex = self.generate_logformat_regex(self.log_format)
         print(regex)
-        self.df_log = self.log_to_dataframe(self.already_read_file, regex, headers, self.log_format)
+        # self.df_log = self.log_to_dataframe(self.already_read_file, regex, headers, self.log_format)
         # self.df_log = self.Payload
+        self.df_log = self.log_to_dataframe_simple(self.already_read_file)
 
     def preprocess(self, line):
         for currentRex in self.rex:
             line = re.sub(currentRex, '<*>', line)
         return line
+
+    def log_to_dataframe_simple(self, log_file):
+        data = StringIO(log_file.read())
+        headers = [el[1:-1] for el in self.log_format.split(',')]
+        df_log = pd.read_csv(data, names=headers)
+        df_log.index.name = 'LineId'
+        df_log.reset_index(inplace=True)
+        df_log.index = df_log.index + 1
+
+        return df_log
 
     def log_to_dataframe(self, log_file, regex, headers, logformat):
         """ Function to transform log file to dataframe 

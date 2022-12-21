@@ -1,14 +1,15 @@
-import torch
-import torch.nn as nn
+import copy
 
 import numpy as np
-
-from networks import *
+import torch
+import torch.nn as nn
+from joblib import Parallel, delayed
 from sklearn.cluster import KMeans
 from sklearn.neighbors import NearestNeighbors
-from joblib import Parallel, delayed
 
-from trainer import create_mask
+from classes.networks import *
+from classes.trainer import create_mask
+
 
 def make_model(src_vocab, tgt_vocab, N=3, d_model=512, d_ff=2048, h=8, dropout=0.1, max_len=20, n_prototypes=10,
                initial_weights=[]):

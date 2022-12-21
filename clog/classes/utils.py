@@ -1,12 +1,13 @@
+import sys
 import time
-import torch
+
 import numpy as np
+import torch
 import torch.nn as nn
 
-import sys
 sys.path.append("classes")
 
-from trainer import create_mask
+from classes.trainer import create_mask
 
 PAD_TOKEN = 0
 

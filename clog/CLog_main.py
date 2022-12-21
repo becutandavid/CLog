@@ -1,28 +1,30 @@
 import copy
-import time
-import pandas as pd
-import numpy as np
+import re
 import sys
-import torch
+import time
 
+import numpy as np
+import pandas as pd
+import torch
 import torch.nn as nn
 
-from classes.utils import warm_up_MSP, evaluate_MSP, solver
+from classes.utils import evaluate_MSP, solver, warm_up_MSP
 
 sys.path.append("classes")
 
-from clustering import *
-from create_dataloaders import create_train_valid_data_loaders, create_test_data_loader
+from sklearn.metrics import (accuracy_score, f1_score, precision_score,
+                             recall_score)
 
-from sklearn.metrics import accuracy_score, precision_score, recall_score, f1_score
-
+from classes.clustering import *
+from create_dataloaders import (create_test_data_loader,
+                                create_train_valid_data_loaders)
 
 # 60s: pad_len 16, epochs 200
 # 120s: pad_len 64, epochs 400
 # 120s: pad_len 64, epochs 600
 # 240s: pad_len 64, epochs (10: 600, 20: 400, 30:
 
-for TIME_INTERVAL_ in ["180s", "240s", "300s"]:
+for TIME_INTERVAL_ in ["300s"]:
     TIME_INTERVAL_ = TIME_INTERVAL_
 
     print("<<<<>>>>>"*10)
@@ -159,8 +161,22 @@ for TIME_INTERVAL_ in ["180s", "240s", "300s"]:
         train_data_main_tmp.loc[:, prediction_keys] = d
         return train_data_main_tmp
 
+    def string_to_list(x):
+        """Converts a string like '[1 2 3 5]' to a np.array
 
-    path = "./data/NOVA/resources/"+TIME_INTERVAL_+"/masked_train_valid_test/"
+        """
+        filter_spaces = re.sub(r' +', ',', x)
+        filter_newlines = filter_spaces.replace('\n', '')
+        if filter_newlines == '[]':
+            return np.array([]).astype('int32')
+        output_list = []
+        for el in filter_newlines[1:-1].split(','):
+            if el != '':
+                output_list.append(int(el))
+        return np.array(output_list).astype('int32')
+
+
+    path = "data/train_valid_test_splits/"
 
     # flag = input("CHOOSE MODE OF OPERATION: (1) DEBUGGING OR (2) EVALUATION")
     #
@@ -187,8 +203,8 @@ for TIME_INTERVAL_ in ["180s", "240s", "300s"]:
         print("*****************"*10)
         print("*****************"*10)
         print("CURRENTLY PROCESSING N_CLUSTERS {}".format(n_clusters))
-        train_data_main = pd.read_csv(path + "joint_dataset_" + TIME_INTERVAL_ + ".csv")
-        valid_normal_data_main = pd.read_csv(path + "train_normal_" + TIME_INTERVAL_ + ".csv")
+        train_data_main = pd.read_csv(path + "train_normal_" + TIME_INTERVAL_ + ".csv")
+        valid_normal_data_main = pd.read_csv(path + "valid_normal_" + TIME_INTERVAL_ + ".csv")
 
 
         if TIME_INTERVAL_ in ["60s", "120s"]:
@@ -198,8 +214,9 @@ for TIME_INTERVAL_ in ["180s", "240s", "300s"]:
             warmup_epochs = 200
             clustering_epochs = 5
 
-        train_load = train_data_main.encoded_labels.apply(lambda x: np.array(x[1:-1].rsplit(",")).astype("int32")).values
-        train_labels = train_data_main.MSP_Target.values
+        train_load = train_data_main.encoded_labels.apply(string_to_list).values
+        train_labels = train_data_main.anom_label.apply(string_to_list).values
+        train_labels = np.array([1 in el for el in train_labels], dtype=np.long)
 
         train_data_loader_for_training, train_data_loader_val = create_train_valid_data_loaders(load_train=train_load,
                                                                                                 labels_train=train_labels,
@@ -208,8 +225,9 @@ for TIME_INTERVAL_ in ["180s", "240s", "300s"]:
                                                                                                 pad_len=PAD_LEN,
                                                                                                 batch_size=BATCH_SIZE)
 
-        valid_normal_load = valid_normal_data_main.encoded_labels.apply(lambda x: np.array(x[1:-1].rsplit(",")).astype("int32")).values
-        valid_normal_labels = valid_normal_data_main.MSP_Target.values
+        valid_normal_load = valid_normal_data_main.encoded_labels.apply(string_to_list).values
+        valid_normal_labels = valid_normal_data_main.anom_label.apply(string_to_list).values
+        valid_normal_labels = np.array([1 in el for el in valid_normal_labels], dtype=np.long)
 
         valid_data_loader_normal = create_test_data_loader(
                         load_test=valid_normal_load,
@@ -266,7 +284,7 @@ for TIME_INTERVAL_ in ["180s", "240s", "300s"]:
                    )
         # model.init_clusters_train(train_dataloader, epoch=1)
         # model.fit(train_dataloader, epochs=2)
-        file_name = "/home/matilda/PycharmProjects/FailurePrediction/5_results/output_files_per_experiment/CLog_time_" + TIME_INTERVAL_ + "_clusters_" + str(n_clusters) + "_.txt"
+        file_name = "data/clusters/CLog_time_" + TIME_INTERVAL_ + "_clusters_" + str(n_clusters) + "_.txt"
         print("$$$$$$"*10)
         print("------"*10)
         print("1) WARM UP STARTED!!!")
@@ -302,7 +320,7 @@ for TIME_INTERVAL_ in ["180s", "240s", "300s"]:
         print("------"*10)
         print("3) Cluster sequences")
         clustered_sequences = cluster_sequences(train_data_main, prediction_keys)
-        clustered_sequences.to_csv("./clustering_holistic_outptu_results_"+TIME_INTERVAL_+"_clusters_" + str(n_clusters) +  "_.csv")
+        clustered_sequences.to_csv("data/clusters/"+TIME_INTERVAL_+"_clusters_" + str(n_clusters) +  "_.csv")
         print("4) Finish")
         print("*****************" * 10)
         print("*****************" * 10)
